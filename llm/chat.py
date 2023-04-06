@@ -1,4 +1,5 @@
 import openai
+import os
 import json
 import logging
 
@@ -78,8 +79,7 @@ class Chat:
         logging.debug("Sending input to %s: %s", self.name, messages)
 
         completion = openai.ChatCompletion.create(
-            model=os.environ.get("OPENAI_MODEL", "gpt-4"),
-            # model="gpt-3.5-turbo",
+            model=os.getenv("OPENAI_MODEL", "gpt-4"),
             messages=messages,
             temperature=self.temperature,
             max_tokens=self.max_tokens,

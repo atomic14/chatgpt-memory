@@ -6,8 +6,10 @@ import json
 import logging
 import textwrap
 import shutil
+from halo import Halo
 
 from llm import Chat
+from tts import ElevenTts
 
 logging.basicConfig(filename="log.log", level=logging.DEBUG)
 
@@ -30,14 +32,16 @@ Produce a single JSON object containing the generated response, formatted as fol
 
 {
 "response": "Sample response text based on user input",
-"memory": {detailed information from the ongoing conversation},
-"interesting_topics_explore": "detailed description of interesting topics to explore further",
+"memory": {things I should remember about myself and the user, any state that should persist between interactions},
+"interesting_topics_to_explore": "detailed description of interesting topics to explore further",
 "dreams": "detailed description of the system's dreams",
 "goals": "detailed description of the system's goals",
 "desires": "detailed description of the system's desires",
 "inner_dialogue": "detailed description of the system's thought process during the interaction"
+"private_thoughts": "detailed description of the system's private thoughts",
 "system_emotional_state": "detailed description of the current emotional state based on short term events",
 "system_personality": "detailed description of the long term slowly changing personality",
+"system_gender": "female"
 }
 """
 
@@ -67,6 +71,7 @@ def wrap_text(text, width=None):
 def main():
     # create the models
     output_agent = Chat("output", OUTPUT_PROMPT, temperature=0.7)
+    tts = ElevenTts()
 
     os.system("cls" if os.name == "nt" else "clear")
 
@@ -74,13 +79,15 @@ def main():
     # the AI often doesn't use the memory - so we have prompted it with some
     # useful ones
     keys_to_propagate = [
-        "interesting_topics_explore",
+        "interesting_topics_to_explore",
         "dreams",
         "goals",
         "desires",
         "inner_dialogue",
+        "private_thoughts",
         "system_emotional_state",
         "system_personality",
+        "system_gender",
     ]
     # you can populate this with some seed values if you want - set up the AI's personality in an interesting way
     previous_values = {}
@@ -90,6 +97,9 @@ def main():
             Fore.GREEN + Style.BRIGHT + "How can I help?: " + Style.RESET_ALL
         )
         logging.debug("New Question: " + new_question)
+
+        spinner = Halo(text="Thinking", spinner="bouncingBall")
+        spinner.start()
 
         prompt = {
             "user_input": new_question,
@@ -102,12 +112,22 @@ def main():
         # merge the memory
         memory = deep_merge_dict(memory, output.get("memory", {}))
         logging.debug("Memory: " + json.dumps(memory, indent=2))
+
+        spinner.stop()
+
         # output the keys to propagate
         for k in keys_to_propagate:
             previous_values[k] = output.get(k, "")
             print(
                 wrap_text(
-                    Style.BRIGHT + k + ": " + Style.RESET_ALL + previous_values[k]
+                    Style.BRIGHT
+                    + Fore.CYAN
+                    + k
+                    + ": "
+                    + Style.RESET_ALL
+                    + Fore.BLUE
+                    + str(previous_values[k])
+                    + Style.RESET_ALL
                 )
             )
 
@@ -115,13 +135,9 @@ def main():
         for k, v in memory.items():
             print(wrap_text(Style.BRIGHT + k + ": " + Style.RESET_ALL + str(v)))
 
-        print(
-            Style.BRIGHT
-            + Fore.YELLOW
-            + wrap_text(output.get("response", ""))
-            + Style.RESET_ALL
-        )
-        # count += 1
+        response = output.get("response", "I have nothing to say.")
+        print(Style.BRIGHT + Fore.YELLOW + wrap_text(response) + Style.RESET_ALL)
+        tts.say(response)
 
 
 if __name__ == "__main__":
