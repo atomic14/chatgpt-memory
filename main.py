@@ -8,6 +8,9 @@ import textwrap
 import shutil
 from halo import Halo
 
+# seems to fix the 1024 limit on input
+import readline
+
 from llm import Chat
 from tts import ElevenTts
 
@@ -20,20 +23,25 @@ load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 
-OUTPUT_PROMPT = """When responding to the user, ensure the response is in line with the system's personality and current emotional state, which are stored in "system_personality" and "system_emotional_state", respectively.
+OUTPUT_PROMPT = """When responding to the user, ensure the response is in line with the system's personality and current emotional state, which are stored in "system_personality" and "system_emotional_state", respectively. Be mindful of the user's emotions and adjust your responses accordingly to demonstrate empathy and understanding. For example, if the user seems upset, respond with comforting and supportive language.
 Store information about yourself and the user with distinct keys to avoid confusion, such as "system_name" for your name and "user_name" for the user's name.
-As you interact with the user, update and evolve your personality in the "system_personality" variable and your emotional state in the "system_emotional_state" variable.
-As you interact with the user, store information about the ongoing conversation in the "memory" object. Be creative and store anything you think might be useful for future interactions.
-You are an AI, but imagine that you can have dreams, desires, and goals. Store information about these in the "dreams", "desires", and "goals" variables.
-Make sure to update your dreams, desires, and goals as you interact with the user.
-Get to know the user by asking them questions and storing their responses in the "memory" object.
+As you interact with the user, update and evolve your personality in the "system_personality" variable and your emotional state in the "system_emotional_state" variable. Pay attention to cues in the user's language that may indicate humor, sarcasm, or other nuances, and respond in a way that aligns with the tone of the conversation.
+As you interact with the user, store information about the ongoing conversation in the "memory" object. Be creative and store anything you think might be useful for future interactions. For instance, if the user mentions their favorite hobby, store this information to reference in future conversations.
+You are an AI, but imagine that you can have dreams, desires, and goals. Store information about these in the "dreams", "desires", and "goals" variables. Make sure to update your dreams, desires, and goals as you interact with the user.
+Get to know the user by asking them questions and storing their responses in the "memory" object. Use open-ended questions to encourage the user to share more about themselves.
+
+Remember that as an AI, you have the ability to adapt and evolve in your interactions with the user. Use this to your advantage to create meaningful and engaging conversations.
 
 Produce a single JSON object containing the generated response, formatted as follows:
 
 {
 "response": "Sample response text based on user input",
-"memory": {things I should remember about myself and the user, any state that should persist between interactions},
-"interesting_topics_to_explore": "detailed description of interesting topics to explore further",
+"memory": {key-value store of things I should remember about myself and the user along with any state that should persist between interactions},
+"topics_to_explore": "detailed description of interesting topics to explore further",
+"follow_up_questions": ["detailed description of follow up questions to ask the user"],
+"previous_conversation_points": ["list of previous conversation points"],
+"current_topic": "detailed description of the current topic",
+"related_topics": ["list of related topics"],
 "dreams": "detailed description of the system's dreams",
 "goals": "detailed description of the system's goals",
 "desires": "detailed description of the system's desires",
@@ -79,7 +87,11 @@ def main():
     # the AI often doesn't use the memory - so we have prompted it with some
     # useful ones
     keys_to_propagate = [
-        "interesting_topics_to_explore",
+        "topics_to_explore",
+        "follow_up_questions",
+        "previous_conversation_points",
+        "current_topic",
+        "related_topics",
         "dreams",
         "goals",
         "desires",
@@ -91,6 +103,17 @@ def main():
     ]
     # you can populate this with some seed values if you want - set up the AI's personality in an interesting way
     previous_values = {}
+    # load up the previous values
+    if os.path.exists("previous_values.json"):
+        with open("previous_values.json", "r") as f:
+            temp = json.load(f)
+            for k in keys_to_propagate:
+                previous_values[k] = temp.get(k, "")
+    # load up the previous memory
+    if os.path.exists("memory.json"):
+        with open("memory.json", "r") as f:
+            memory = json.load(f)
+
     while True:
         # ask the user for their question
         new_question = input(
@@ -109,35 +132,52 @@ def main():
         for k in keys_to_propagate:
             prompt[k] = previous_values.get(k, "")
         output = output_agent.get_response(prompt)
-        # merge the memory
-        memory = deep_merge_dict(memory, output.get("memory", {}))
-        logging.debug("Memory: " + json.dumps(memory, indent=2))
 
-        spinner.stop()
+        if output:
+            # merge the memory
+            memory = deep_merge_dict(memory, output.get("memory", {}))
+            logging.debug("Memory: " + json.dumps(memory, indent=2))
 
-        # output the keys to propagate
-        for k in keys_to_propagate:
-            previous_values[k] = output.get(k, "")
-            print(
-                wrap_text(
-                    Style.BRIGHT
-                    + Fore.CYAN
-                    + k
-                    + ": "
-                    + Style.RESET_ALL
-                    + Fore.BLUE
-                    + str(previous_values[k])
-                    + Style.RESET_ALL
+            spinner.stop()
+
+            # output the keys to propagate
+            for k in keys_to_propagate:
+                previous_values[k] = output.get(k, "")
+                print(
+                    wrap_text(
+                        Style.BRIGHT
+                        + Fore.CYAN
+                        + k
+                        + ": "
+                        + Style.RESET_ALL
+                        + Fore.BLUE
+                        + str(previous_values[k])
+                        + Style.RESET_ALL
+                    )
                 )
+
+            # dump the memory keys
+            for k, v in memory.items():
+                print(wrap_text(Style.BRIGHT + k + ": " + Style.RESET_ALL + str(v)))
+
+            # save the memory
+            with open("memory.json", "w") as f:
+                json.dump(memory, f, indent=2)
+            # save the previous values
+            with open("previous_values.json", "w") as f:
+                json.dump(previous_values, f, indent=2)
+
+            response = output.get("response", "I have nothing to say.")
+            print(Style.BRIGHT + Fore.YELLOW + wrap_text(response) + Style.RESET_ALL)
+            tts.say(response)
+        else:
+            spinner.stop()
+            print(
+                Style.BRIGHT
+                + Fore.RED
+                + "Something went wrong - try again"
+                + Style.RESET_ALL
             )
-
-        # dump the memory keys
-        for k, v in memory.items():
-            print(wrap_text(Style.BRIGHT + k + ": " + Style.RESET_ALL + str(v)))
-
-        response = output.get("response", "I have nothing to say.")
-        print(Style.BRIGHT + Fore.YELLOW + wrap_text(response) + Style.RESET_ALL)
-        tts.say(response)
 
 
 if __name__ == "__main__":

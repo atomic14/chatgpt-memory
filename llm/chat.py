@@ -46,6 +46,10 @@ class Chat:
         self.frequency_penalty = frequency_penalty
 
         self.history = []
+        # load up any previous history
+        if os.path.exists("chat_history.json"):
+            with open("chat_history.json") as f:
+                self.history = json.load(f)
 
     def parse_json_response(self, response):
         # try and parse the response as JSON
@@ -55,14 +59,14 @@ class Chat:
             # trim any whitespace
             response = response.strip()
             if response == "":
-                return {}
+                return None
             else:
                 # handle multiple lines withing the JSON strings - these are often not returned as \n but as actual carriage returns.
                 response = fixup_newlines_inside_string(response)
                 response = json.loads(response)
         except:
             print(f"Could not parse as JSON. |{response}|")
-            return {}
+            return None
         return response
 
     def get_response(self, input):
@@ -90,5 +94,15 @@ class Chat:
         response = completion.choices[0].message.content
         logging.debug("Received response from %s: %s", self.name, response)
         response_json = self.parse_json_response(response)
+        if not response_json:
+            # failed to parse the response - typically this is because the json is messed up
+            # return None so the user tries again
+            return None
+
         self.history.append((input, response))
+
+        # save the history
+        with open("chat_history.json", "w") as f:
+            json.dump(self.history, f, indent=2)
+
         return response_json
