@@ -31,8 +31,8 @@ class Chat:
         self,
         name,
         system_prompt,
-        max_history=10,
-        max_tokens=500,
+        max_history=9,
+        max_tokens=1000,
         temperature=0.6,
         presence_penalty=0,
         frequency_penalty=0,
@@ -81,28 +81,40 @@ class Chat:
         # add the new question
         messages.append({"role": "user", "content": json.dumps(input)})
         logging.debug("Sending input to %s: %s", self.name, messages)
+        try:
+            completion = openai.ChatCompletion.create(
+                model=os.getenv("OPENAI_MODEL", "gpt-4"),
+                messages=messages,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens,
+                top_p=1,
+                frequency_penalty=self.frequency_penalty,
+                presence_penalty=self.presence_penalty,
+            )
+            response = completion.choices[0].message.content
+            logging.debug("Received response from %s: %s", self.name, response)
+            response_json = self.parse_json_response(response)
+            if not response_json:
+                # failed to parse the response - typically this is because the json is messed up
+                # return None so the user tries again
+                return None
 
-        completion = openai.ChatCompletion.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4"),
-            messages=messages,
-            temperature=self.temperature,
-            max_tokens=self.max_tokens,
-            top_p=1,
-            frequency_penalty=self.frequency_penalty,
-            presence_penalty=self.presence_penalty,
-        )
-        response = completion.choices[0].message.content
-        logging.debug("Received response from %s: %s", self.name, response)
-        response_json = self.parse_json_response(response)
-        if not response_json:
-            # failed to parse the response - typically this is because the json is messed up
-            # return None so the user tries again
+            self.history.append((input, response))
+
+            # save the history
+            with open("chat_history.json", "w") as f:
+                json.dump(self.history, f, indent=2)
+
+            return response_json
+        except openai.InvalidRequestError as e:
+            if e.code == "context_length_exceeded":
+                print("Ran out of tokens - reducing max history")
+                # the context is too long - trim it down and try again
+                self.max_history = self.max_history - 1
+                return self.get_response(input)
+            else:
+                print("Error: ", e)
+                return None
+        except Exception as e:
+            print("Error: ", e)
             return None
-
-        self.history.append((input, response))
-
-        # save the history
-        with open("chat_history.json", "w") as f:
-            json.dump(self.history, f, indent=2)
-
-        return response_json

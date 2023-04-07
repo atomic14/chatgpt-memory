@@ -8,7 +8,7 @@ ChatGPT is very good at the guessing side of things, but asking it to think of s
 
 This started with a simple prompt to give the AI somewhere to store information and expanded into some more fixed keys to help the bot know what to store.
 
-It's quite fun to see the contents of the `inner_dialogue` - you may need to keep reminding yourself that it is not thinking!
+It's quite fun to see the contents of the `inner_dialogue` and `private_thoughts` - you may need to keep reminding yourself that it is not thinking!
 
 This code works best with `gpt-4`, but you can get reasonable results with `gpt-3.5-turbo`.
 
@@ -34,7 +34,7 @@ python main.py
 
 # Fun things to try
 
-Get the bot to give itself a name and then ask it why it picked the name it did. "Give me a name", "Why did you pick that name?".
+Get the bot to give itself a human name and then ask it why it picked the name it did. "Give yourself a human name", "Why did you pick that name?".
 
 Play guessing games with the bot "Let's play a game, you think of something and I'll guess it".
 
@@ -58,4 +58,24 @@ You will need to say something like:
 
 And then GPT-3.5 will remember the object.
 
-You will quickly run out of tokens with GPT-3.5. There's probably a way of compressing the previous chat data, but I haven't worked out how to do that yet.
+For playing games like Hangman - even with GPT-4 - you will need to be very explicit about what the bot is doing. For example:
+
+`Let's play hangman, think of a word and I'll try and guess it. Make sure you keep track of the guessed letters and their positions in the word.`
+
+If you don't do this then it will often start off great, but then lose track of which letters in the word have been guessed. This can still happen so you can end up in a situation where the memory contains:
+
+```
+word: "elephant",
+guesses_letters: ["e"],
+display_word: "_ _ e _ _ _ _ _"
+```
+
+# Token Limit
+
+This uses a lot of tokens - so it will cost quite a bit of money to run. There may be ways to optimize the prompts that are fed back into the system with each user input, but I haven't done much experimentation with that.
+
+The code will try and be clever and will reduce the amount of chat history it sends up to the server. With the memory and the fixed keys this may not have a massive impact on the conversation.
+
+# Future Work
+
+The bot can be quite reluctant to remember things. Giving it explicit keys seems to help quite a bit - but it would be nice to see it be more creative in how it uses the memory.
