@@ -42,7 +42,7 @@ Get the bot to give itself a human name and then ask it why it picked the name i
 
 Play guessing games with the bot "Let's play a game, you think of something and I'll guess it".
 
-Hangman is interesting - particularly in terms of what the bot stores in the memory.
+Hangman is interesting - particularly in terms of what the bot stores in the memory. If you really want Hangman to work then you are better off using a plugin: https://github.com/atomic14/chatgpt-hangman
 
 # Some challenges
 
