@@ -12,6 +12,10 @@ It's quite fun to see the contents of the `inner_dialogue` and `private_thoughts
 
 This code works best with `gpt-4`, but you can get reasonable results with `gpt-3.5-turbo`.
 
+You can see it in action in this video:
+
+[![Demo Video](https://img.youtube.com/vi/4oQUsiPsbOQ/0.jpg)](https://www.youtube.com/watch?v=4oQUsiPsbOQ)
+
 # Setup
 
 Make sure you've got Python installed and then install the requirements:
